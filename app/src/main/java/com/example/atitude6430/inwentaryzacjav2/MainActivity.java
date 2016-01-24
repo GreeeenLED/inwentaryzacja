@@ -212,6 +212,7 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         }
         description2.setText(stringBuilder);
     }
+    //
     boolean selectedOption;//od tego zależy która metoda zostanie wybrana w worningach!!!
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {

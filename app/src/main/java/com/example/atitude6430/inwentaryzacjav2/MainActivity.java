@@ -1,9 +1,11 @@
 package com.example.atitude6430.inwentaryzacjav2;
 
+import android.app.DialogFragment;
 import android.app.Fragment;
 import android.app.FragmentManager;
 import android.app.FragmentTransaction;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -40,13 +42,14 @@ import java.io.OutputStreamWriter;
 import java.io.StreamCorruptedException;
 import java.nio.Buffer;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.IllegalFormatCodePointException;
 import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class MainActivity extends AppCompatActivity implements Admin_login.CommunicationWithFragment,LicenceFragment.LicenceAndActivity {
+public class MainActivity extends AppCompatActivity implements Admin_login.CommunicationWithFragment,WarningDialog.NoticeDialogsListener {
 
     //DATAS FOR TESTING
     String[] description={"data1","woda","tabsy niebieskie","husteczki","data5"};
@@ -54,33 +57,13 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
     InvObjects[] objects= new InvObjects[5];
     boolean workState;//zeminna do sprawdzania czy juz uruchamiano app true-na początku ustwaiane, false- po wybraniu nowej lub wznowienia
     ///////////////
-
-    CheckBox checkQuantity;
     EditText editQuantity;
     TextView licenceKey;
     EditText codeEntered;
 
     TextView description2;
 
-    Button buttonScan;
-    public void QuantityState(){
-        //method for changing quantity entering option
-        checkQuantity.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked==true){
-                    buttonScan.setText("SKANUJ/ZATWIERDŹ");
-                    editQuantity.setVisibility(View.VISIBLE);
-                    editQuantity.setEnabled(true);
-                }else
-                {
-                    editQuantity.setEnabled(false);
-                    editQuantity.setVisibility(View.INVISIBLE);
-                    buttonScan.setText("SKANUJ");
-                }
-            }
-        });
-    }
+
     List<InvObjects> invElements = new ArrayList<InvObjects>();
     public void LoadData(){
         //wczytywanie danych z karty SD lub z pliku wewnętrzengo
@@ -119,11 +102,34 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         }
     }
 
+    public void Clear(View view){
+        cleraFields();
+    }
+    public void ToastMessage(String msg){
+        Toast.makeText(this,msg,Toast.LENGTH_SHORT).show();
+    }
+    public void Delete(View view){
+        Integer toDelete = FindElement();
+        if (editQuantity.getText().toString().equals("")) {
+            ToastMessage("Niew wprowadzono ilości");
+
+        }else {
+            int wynik = invElements.get(toDelete).getQuantity() - Integer.parseInt(editQuantity.getText().toString());
+            Log.d("WYNIK ", "odejmowania " + wynik);
+            if (wynik<=0){
+                ToastMessage("Nie można usnąć elementu");
+            }else{
+                invElements.get(toDelete).DecreaseQuantity(Integer.parseInt(editQuantity.getText().toString()));
+                ToastMessage("usunięto, pozostało: " +invElements.get(toDelete).getQuantity()+" elementów");
+                cleraFields();
+            }
+        }
+    }
     public void cleraFields(){
         editQuantity.getText().clear();
         codeEntered.getText().clear();
     }
-    public Integer FindElement(boolean mode){
+    public Integer FindElement(){
         Log.d("size of", "list elements: " + invElements.size());
         for (int i=0;i<invElements.size();i++){
             if (codeEntered.getText().toString().equals(invElements.get(i).getCode())){
@@ -132,30 +138,25 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
                 return i;
             }
         }
+        Toast.makeText(this, "Brak kodu w bazie", Toast.LENGTH_SHORT).show();
         return null;
     }
-
-    public void SKANUJ(View view){
-
-        cleraFields();
-        /*
+    public void Zatwierdz(View view){
         Integer element=FindElement();//finding element based on scanned code
-        if (checkQuantity.isChecked()){
             if (element==null){
-                Log.d("nie","ma takiego obiektu");
+                Log.d("nie", "ma takiego obiektu");
                 //dodanie obiektu gdy nie bedzie w bazie111
-            }else{
+            }else {
                 Log.d("znaleziono", "obiekt: " + element); //przez to wywoluje sie find record
                 if (editQuantity.getText().toString().equals(""))
-                    Toast.makeText(this,"NIE WPROWADZONO ILOŚCI",Toast.LENGTH_LONG).show();
-                else{
+                    ToastMessage("NIE WPROWADZONO ILOŚCI");
+                else {
                     invElements.get(element).IncreaseQuantity(Integer.parseInt(editQuantity.getText().toString()));//(Integer.parseInt(editQuantity.getText().toString()));
                     Log.d("nowa", "wartosc code: " + invElements.get(element).getCode() + " quantity: " + invElements.get(element).getQuantity());
+                    cleraFields();
                 }
             }
-        }*/
     }
-    private Timer timer;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -164,51 +165,14 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         main_layout = (RelativeLayout) findViewById(R.id.main_layout);
         fragmentLayout = (RelativeLayout)findViewById(R.id.loginContainer);
         editQuantity = (EditText) findViewById(R.id.editTextQuantity);
-        editQuantity.setVisibility(View.INVISIBLE);
-        checkQuantity = (CheckBox) findViewById(R.id.checkBoxQuantity);
-        buttonScan = (Button) findViewById(R.id.buttonScan);
+
         workState=true;
         licenceKey = (TextView) findViewById(R.id.textViewKey);
         codeEntered = (EditText) findViewById(R.id.editTextCode);
 
-        //text watcher!!!
-        codeEntered.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-                //cleraFields();
-            }
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                // user is typing: reset already started timer (if existing)
-                if (timer != null) {
-                   // blockFind=false;
-                    timer.cancel();
-                }
-            }
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                timer = new Timer();
-                timer.schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-
-                            FindElement(true);
-                        // do your actual work here
-                    }
-                }, 600); // 600ms delay before the timer executes the „run“ method from TimerTask
-
-            }
-        });
-
-
         description2 = (TextView) findViewById(R.id.textViewOpis);
 
-        QuantityState();
-        LoadData();// testowe obiekty
-
-
+        LoadData();// testowe obiekt
         GenreteKey();
         GenerateLicence();
     }
@@ -222,45 +186,66 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
 
     public void ShowWarning(){
         //worning shown when sombede would like to start new job durring present job
-        FragmentManager manager = getFragmentManager();
-        Fragment frag =manager.findFragmentByTag("tag");
 
-        WarningDialog warningDialog = new WarningDialog();
-        warningDialog.show(manager, "tag");
+        DialogFragment newFragment = new WarningDialog ();
+        newFragment.show(getFragmentManager(), "Warrning");
     }
-
+    public void ClearList(){
+        invElements.clear();
+    }
+    public void SaveCopy(){
+        SharedPreferences sharedCopy = getApplication().getSharedPreferences(getString(R.string.WorkCopy), Context.MODE_PRIVATE);
+        SharedPreferences.Editor editorCopy = sharedCopy.edit();
+        editorCopy.clear();
+        for (int i=0;i<5;i++){
+            editorCopy.putInt(invElements.get(i).code,invElements.get(i).getQuantity());
+        }
+        editorCopy.commit();
+    }
+    public void LoadCopy(){
+        SharedPreferences sharedCopy = getApplication().getSharedPreferences(getString(R.string.WorkCopy), Context.MODE_PRIVATE);
+        StringBuilder stringBuilder = new StringBuilder();
+        Map<String,Integer> copies = (Map<String, Integer>) sharedCopy.getAll();
+        for (Map.Entry<String,?> entry : copies.entrySet()){
+            invElements.add(new InvObjects("a",entry.getKey(), (Integer) entry.getValue()));
+            stringBuilder.append("code: "+entry.getKey()+" quantity: "+entry.getValue()+"\n");
+        }
+        description2.setText(stringBuilder);
+    }
+    boolean selectedOption;//od tego zależy która metoda zostanie wybrana w worningach!!!
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         switch (item.getItemId()){
             case R.id.exit:
-                //zapisać wczesniejsze wyniki
-                //usunąc wszystkie obiekty
-                //na poczatek dorzucic pytanie czy wznowic poprzednia prace
                 SaveCopy();
+                ClearList();
                 finish();
                 break;
-            case R.id.newWork:
+            case R.id.newWork://nowa praca
                 if (!workState){
+                    selectedOption = false;
                     ShowWarning();
                 }else {
                     //kod do wczyatania nowych danych z karty SD
-                    workState=false;
+                    ClearList();
+                    //wczytanie z kartyu sd
+                    workState = false;
                 }
-                //wczytywanie danych z karty SD i tworzenie obiektów dla nowych danych
-                //czyszczenie kopi poprzedniej parcy
-                //zablokownanie wznowienia
                 break;
             case R.id.reloadLast:
                 if(!workState){
                     ShowWarning();
+                    selectedOption = true;
                 }else
                 {
-                    //kod do czytania poprzendich danych
-
                     workState=false;
+                    ClearList();
+                    LoadCopy();
                 }
-                //wczytanie poprzedniej pracy
-                //zablokowanie nowej pracy
+                break;
+            case R.id.saveResults:
+                SaveCopy();
+                //docelowo na karte SD
                 break;
             case R.id.login:
                 LoginFragment(true);
@@ -275,7 +260,7 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         szyfr = Double.parseDouble(GenreteKey());
         Log.d("Klucz licencyjny", " wersja double to: " + String.format("%d",(long)szyfr));
         szyfr +=2500-25+34+966665;
-        Log.d("Klucz zaszyfrowany", " wersja double to: " + String.format("%d",(long)szyfr));
+        Log.d("Klucz zaszyfrowany", " wersja double to: " + String.format("%d", (long) szyfr));
         SharedPreferences sharedPreferences = this.getSharedPreferences(getString(R.string.LicencePref), Context.MODE_PRIVATE);
         if (String.format("%d", (long) szyfr).equals(sharedPreferences.getString(getString(R.string.Licence), ""))){
             LicenceFragment(false);
@@ -309,7 +294,7 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
             clientKey.append(buffer);
         }
 
-        Log.d("appended","Key parts "+clientKey.toString());
+        Log.d("appended", "Key parts " + clientKey.toString());
         return clientKey.toString();
     }
 
@@ -338,28 +323,26 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
             fragmentLayout.setVisibility(View.INVISIBLE);
         }
     }
-    public void SaveCopy(){
-        SharedPreferences sharedCopy = getApplication().getSharedPreferences(getString(R.string.WorkCopy), Context.MODE_PRIVATE);
-        SharedPreferences.Editor editorCopy = sharedCopy.edit();
-        editorCopy.clear();
-        for (int i=0;i<5;i++){
-            editorCopy.putInt(invElements.get(i).code,invElements.get(i).getQuantity());
-        }
-        editorCopy.commit();
-    }
 
-    public void WriteSD(View view) {
-        //show saved data
-        SharedPreferences sharedCopy = getApplication().getSharedPreferences(getString(R.string.WorkCopy), Context.MODE_PRIVATE);
-        StringBuilder stringBuilder = new StringBuilder();
-        Map<String,?> copies = sharedCopy.getAll();
-        for (Map.Entry<String,?> entry : copies.entrySet()){
-            stringBuilder.append("code: "+entry.getKey()+" quantity: "+entry.getValue()+"\n");
-        }
-        description2.setText(stringBuilder);
+    public void WriteSD() {
+
     }
     public void ReadSD(View view){
 
     }
 
+    @Override
+    public void onDialogOK(DialogFragment dialog) {
+        ToastMessage("OK");
+        if (selectedOption){
+            LoadCopy();
+        }else {
+            //load from SD card
+        }
+    }
+
+    @Override
+    public void onDialogCancel(DialogFragment dialog) {
+        ToastMessage("Cancel");
+    }
 }

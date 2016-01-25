@@ -9,6 +9,8 @@ import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Environment;
+import android.support.annotation.RequiresPermission;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.Editable;
@@ -48,6 +50,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import au.com.bytecode.opencsv.CSVReader;
+import au.com.bytecode.opencsv.CSVWriter;
 
 public class MainActivity extends AppCompatActivity implements Admin_login.CommunicationWithFragment,WarningDialog.NoticeDialogsListener {
 
@@ -172,7 +177,8 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
 
         description2 = (TextView) findViewById(R.id.textViewOpis);
 
-        LoadData();// testowe obiekt
+        //LoadData();// testowe obiekt
+        //ReadSD();
         GenreteKey();
         GenerateLicence();
     }
@@ -186,7 +192,6 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
 
     public void ShowWarning(){
         //worning shown when sombede would like to start new job durring present job
-
         DialogFragment newFragment = new WarningDialog ();
         newFragment.show(getFragmentManager(), "Warrning");
     }
@@ -197,7 +202,7 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         SharedPreferences sharedCopy = getApplication().getSharedPreferences(getString(R.string.WorkCopy), Context.MODE_PRIVATE);
         SharedPreferences.Editor editorCopy = sharedCopy.edit();
         editorCopy.clear();
-        for (int i=0;i<5;i++){
+        for (int i=0;i<invElements.size();i++){
             editorCopy.putInt(invElements.get(i).code,invElements.get(i).getQuantity());
         }
         editorCopy.commit();
@@ -207,7 +212,7 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         StringBuilder stringBuilder = new StringBuilder();
         Map<String,Integer> copies = (Map<String, Integer>) sharedCopy.getAll();
         for (Map.Entry<String,?> entry : copies.entrySet()){
-            invElements.add(new InvObjects("a",entry.getKey(), (Integer) entry.getValue()));
+            invElements.add(new InvObjects("default",entry.getKey(), (Integer) entry.getValue()));
             stringBuilder.append("code: "+entry.getKey()+" quantity: "+entry.getValue()+"\n");
         }
         description2.setText(stringBuilder);
@@ -219,6 +224,7 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
         switch (item.getItemId()){
             case R.id.exit:
                 SaveCopy();
+                WriteSD();
                 ClearList();
                 finish();
                 break;
@@ -227,9 +233,8 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
                     selectedOption = false;
                     ShowWarning();
                 }else {
-                    //kod do wczyatania nowych danych z karty SD
                     ClearList();
-                    //wczytanie z kartyu sd
+                    ReadSD();
                     workState = false;
                 }
                 break;
@@ -245,8 +250,8 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
                 }
                 break;
             case R.id.saveResults:
-                SaveCopy();
-                //docelowo na karte SD
+                WriteSD();
+                ClearList();
                 break;
             case R.id.login:
                 LoginFragment(true);
@@ -324,21 +329,61 @@ public class MainActivity extends AppCompatActivity implements Admin_login.Commu
             fragmentLayout.setVisibility(View.INVISIBLE);
         }
     }
-
+    File root1 = Environment.getExternalStorageDirectory();
     public void WriteSD() {
-
+        List <String[]> NoweData = new ArrayList<String[]>();//do tego są dopisywane obiekty wszystkie
+        for (int i=0;i<invElements.size();i++){
+            NoweData.add(new String[]{invElements.get(i).getDescription(),invElements.get(i).getCode(),String.valueOf(invElements.get(i).getQuantity())});
+        }
+        File write = new File(root1,"wynik.csv");
+        CSVWriter writer = null;
+        try {
+            writer = new CSVWriter(new OutputStreamWriter(new FileOutputStream(write)),';');
+            writer.writeAll(NoweData);
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        NoweData.clear();
     }
-    public void ReadSD(View view){
-
+    public void ReadSD(){
+        ClearList();//czyszczenie listy obiektow
+        File read = new File(root1, "dane.csv");
+        CSVReader reader = null;
+        List<String[]>DodadneData = new ArrayList<String[]>();//tu są dopisywane tylko nowe obiekty
+        String line[]={};
+        try {
+            reader = new CSVReader(new InputStreamReader(new FileInputStream(read)), ';');
+            int i = 0;
+            while (true) {
+                line = reader.readNext();
+                if (line != null) {
+                    DodadneData.add(line);
+                    invElements.add(new InvObjects(DodadneData.get(i)[0],DodadneData.get(i)[1],0));
+                    i++;
+                } else
+                    break;
+            }
+        } catch (FileNotFoundException e) {
+            ToastMessage("nie znaleziono pliku");
+            e.printStackTrace();
+        } catch (IOException e) {
+            ToastMessage("błąd podczas wgrywania");
+            e.printStackTrace();
+        }
+        ToastMessage("Wgrano listę elementów");
     }
 
     @Override
     public void onDialogOK(DialogFragment dialog) {
         ToastMessage("OK");
         if (selectedOption){
+            ClearList();
             LoadCopy();
+            ToastMessage("wgrano kopię");
         }else {
-            //load from SD card
+            ClearList();
+            ReadSD();
         }
     }
 
